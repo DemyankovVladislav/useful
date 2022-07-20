@@ -1,0 +1,44 @@
+---
+- name: Install docker and docker-compose on CentOS
+  hosts: web01
+  gather_facts: no
+  vars:
+    doccomp_ver: v2.6.1
+  tasks:
+  - name: Install packages
+    yum:
+      name: "{{item}}"
+      state: present
+    loop:
+      - epel-release
+      - yum-utils
+      - nano
+      - curl
+      - git
+
+  - name: Set up docker repository
+    shell: yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+  
+  - name: Install Docker
+    yum:
+      name: "{{item}}"
+      state: present
+    loop:
+      - docker-ce
+      - docker-ce-cli
+      - containerd.io
+      - docker-compose-plugin
+ 
+  - name: Start and enabled service Docker
+    systemd:
+      state: started
+      name: docker
+      enabled: yes
+
+  - name: Install docker-compose version {{doccomp_ver}}
+    get_url:
+      url: https://github.com/docker/compose/releases/download/{{doccomp_ver}}/docker-compose-linux-x86_64
+      dest: /usr/bin/docker-compose
+      force: yes
+      mode: 0755
+  
