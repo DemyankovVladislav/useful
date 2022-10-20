@@ -1,0 +1,61 @@
+- hosts: app
+  become: yes
+  tasks:
+  - name: Add key
+    get_url:
+      url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+      dest: /etc/apt/trusted.gpg.d/postgresql.asc
+
+  - name: Add repo
+    apt_repository:
+      repo: "deb [arch=amd64 signed-by=/etc/apt/trusted.gpg.d/postgresql.asc] http://apt.postgresql.org/pub/repos/apt {{ ansible_distribution_release }}-pgdg main"
+      state: present
+
+  - name: Install a list of packages
+    apt:
+      update_cache: yes
+      pkg: "{{ item }}"
+    loop:
+      - acl
+      - python3-psycopg2
+      - postgresql-{{ version }}
+
+
+  - name: Enable Postgresql
+    systemd:
+      name: postgresql
+      enabled: yes
+
+  - name: Create a new database with name "acme" and specific encoding and locale # settings.
+    become_user: postgres
+    postgresql_db:
+      name: mydb
+      encoding: UTF-8
+      state: present
+
+  - name: Create postgres user for my app
+    become_user: postgres
+    postgresql_user:
+      name: "myuser"
+      password: "test123"
+
+  - name: Ensure we have access from the new user
+    become_user: postgres
+    postgresql_privs:
+      db: mydb
+      role: myuser
+      objs: ALL_IN_SCHEMA
+      privs: SELECT,INSERT,UPDATE,DELETE
+
+  - name: Check our data_directory
+    shell: sudo -u postgres psql -c "SHOW data_directory;"
+    register: output
+
+  - debug:
+      var: output.stdout_lines
+      
+  handlers:
+    - name: Restart Postgresql
+      systemd:
+        name: postgresql
+        state: restarted
